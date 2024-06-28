@@ -9,6 +9,6 @@ import java.util.List;
 
 @Repository
 public interface SterilizerRepository extends JpaRepository<SterilizerEntity, Long> {
-    @Query(value = "SELECT * FROM RESULTS_STERILIZER WHERE cycle = ?1 ", nativeQuery = true)
-    List<SterilizerEntity> searchByCycle(String cycle);
+    @Query(value = "SELECT * FROM RESULTS_STERILIZER WHERE creation_test = ?1 ", nativeQuery = true)
+    List<SterilizerEntity> searchByCreationTest(String creationTest);
 }

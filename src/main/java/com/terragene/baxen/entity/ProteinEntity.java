@@ -18,7 +18,7 @@ import lombok.Setter;
 @NoArgsConstructor
 public class ProteinEntity  implements Auditable {
     @Id
-    @GeneratedValue(strategy = GenerationType.SEQUENCE)
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
     @Column(name = "results_protein_id", nullable = false)
     private Long proteinResultsId;
 

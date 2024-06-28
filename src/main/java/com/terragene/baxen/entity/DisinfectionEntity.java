@@ -18,7 +18,7 @@ import lombok.Setter;
 public class DisinfectionEntity implements Auditable {
 
     @Id
-    @GeneratedValue(strategy = GenerationType.AUTO)
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
     @Column(name = "results_disinfection_id", nullable = false)
     private Long resultsDisinfectionId;
 

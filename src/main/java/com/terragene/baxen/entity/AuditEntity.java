@@ -33,6 +33,9 @@ public class AuditEntity {
     @Column(name = "username")
     private String username;
 
+    @Column(name = "informado")
+    private boolean informado;
+
 
     public void setEntityName(String entityName) {
         this.entityName = entityName;
@@ -58,5 +61,10 @@ public class AuditEntity {
     public void setUsername(String username) {
         this.username = username;
     }
+
+    public void setInformado(boolean informado) {
+        this.informado = informado;
+    }
+
 
 }

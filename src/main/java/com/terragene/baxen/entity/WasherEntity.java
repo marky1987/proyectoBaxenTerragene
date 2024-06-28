@@ -13,7 +13,7 @@ import lombok.Setter;
 @Table(name = "results_washer")
 public class WasherEntity implements Auditable {
     @Id
-    @GeneratedValue(strategy = GenerationType.SEQUENCE)
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
     @Column(name = "results_washer_id", nullable = false)
     private Long id;
 

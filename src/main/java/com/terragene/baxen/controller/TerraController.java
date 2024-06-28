@@ -16,31 +16,15 @@ import java.io.IOException;
 import java.text.ParseException;
 import java.util.Map;
 
+/**
+ *
+ */
 @RestController
 @RequestMapping(value = "/api")
 @RequiredArgsConstructor
 public class TerraController {
 
     private final TerraService terraService;
-
-
-    @GetMapping(value = "/obtenerNovedades")
-    public ResponseEntity<String> processMessage(@RequestHeader("user") String username, @RequestHeader("status_read") String statusRead, @RequestHeader("password") String password) throws IOException, JSONException, ParseException {
-        Map<String, Long> resultado  = terraService.processMessage(username, statusRead, password);
-        if (resultado.isEmpty()) {
-            return new ResponseEntity<>("No hay novedades", HttpStatus.OK);
-        } else {
-            /*Se sumariza la cantidad de registros*/
-            long total = resultado.values().stream().mapToLong(Long::longValue).sum();
-
-            if (total == 1) {
-                return new ResponseEntity<>("Se procesa " + total + " novedad", HttpStatus.OK);
-            } else {
-                return new ResponseEntity<>("Se procesan " + total + " novedades", HttpStatus.OK);
-            }
-        }
-    }
-
 
     @PostMapping(value = "/token")
     public TokenDTO tokenLogin(@RequestBody LoginDTO loginCredentials) {

@@ -7,7 +7,9 @@ import com.terragene.baxen.component.LastCheckTimestamp;
 import com.terragene.baxen.configuration.HttpGetWithBody;
 import com.terragene.baxen.dto.*;
 import com.terragene.baxen.entity.*;
+import com.terragene.baxen.exception.BaxenGenericException;
 import com.terragene.baxen.exception.GenericGetRequestException;
+import com.terragene.baxen.exception.ObtenerTokenException;
 import com.terragene.baxen.repository.*;
 import com.terragene.baxen.util.DateFormatter;
 import com.terragene.baxen.util.ProcesosEnum;
@@ -27,7 +29,6 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.MediaType;
-import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.client.RestTemplate;
@@ -40,8 +41,6 @@ import java.time.format.DateTimeFormatter;
 import java.util.*;
 import java.util.stream.Collectors;
 
-import static com.terragene.baxen.util.ProcesosEnum.*;
-
 @Service
 @RequiredArgsConstructor
 @Log4j2
@@ -49,9 +48,6 @@ public class TerraService {
 
     @Value("${spring.external.service.base-url}")
     private String basePath;
-
-    @Value("${spring.filtro.dias}")
-    private String diasDeFiltro;
 
     /*Definicion de constantes*/
     private static final String POSITION_NUMBER = "positionNumber";
@@ -148,16 +144,17 @@ public class TerraService {
      * @throws JSONException           excepcion de json
      */
     public Map<String, Long> processMessage(String username, String statusRead, String password) throws ParseException, JsonProcessingException, JSONException {
-        logger.info("Processing data");
+        logger.info("Inicia proceso de datos");
 
-        BCryptPasswordEncoder passwordEncoder = new BCryptPasswordEncoder();
+        UsersEntity user = usersRepository.getAll().orElseThrow(() -> new GenericGetRequestException("User not found"));
+        //BCryptPasswordEncoder passwordEncoder = new BCryptPasswordEncoder();
 
-        UsersEntity user = usersRepository.findByUsername(username).orElseThrow(() -> new GenericGetRequestException("User not found"));
+        //UsersEntity user = usersRepository.findByUsername(username).orElseThrow(() -> new GenericGetRequestException("User not found"));
 
-        if (passwordEncoder.matches(password, user.getPassword())) {
+        /*if (passwordEncoder.matches(password, user.getPassword())) {*/
 
-            LocalDateTime from = LocalDateTime.now().minusDays(Integer.parseInt(diasDeFiltro));
-            LocalDateTime to = LocalDateTime.now();
+            LocalDateTime from = LocalDateTime.now();
+            LocalDateTime to = LocalDateTime.now().plusDays(Integer.parseInt(user.getDiasFiltro()));
 
             LocalDateTime startFilter = from.withHour(0).withMinute(0).withSecond(0);
             LocalDateTime endFilter = to.withHour(23).withMinute(59).withSecond(59);
@@ -166,38 +163,11 @@ public class TerraService {
 
             procesarDatos(username, formatter.format(startFilter), formatter.format(endFilter), statusRead, password, user);
 
-            logger.info("se guarda los datos en la tabla de auditoria si hay cambios en los registros");
-            logger.info("finalizo el proceso de datos");
+            logger.info("Se guarda los datos en la tabla de auditoria si hay cambios en las novedades y se informara");
+            logger.info("Finalizo el proceso de datos");
 
             return obtenerCambiosRecientes();
-
-        } else {
-            StringBuilder mensaje = new StringBuilder();
-            logger.error("El usuario: " + username + "no tiene permisos para acceder a la aplicacion de Baxen o ingreso mal la contraseña");
-            throw new GenericGetRequestException(mensaje.toString());
-        }
     }
-
-    /*public Map<String, Long> obtenerCambiosRecientes() {
-
-        SimpleDateFormat sdf = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss");
-        String lastCheckedStr = sdf.format(lastCheckTimestamp.getLastChecked());
-
-        List<AuditEntity> nuevosLogs = auditRepository.findByCreatedAtStrAfter(lastCheckedStr);
-
-// Si hay nuevos registros, agrúpalos por nombre de entidad y muestra la cuenta
-        if (!nuevosLogs.isEmpty()) {
-            Map<String, Long> conteoPorEntidad = nuevosLogs.stream()
-                    .collect(Collectors.groupingBy(AuditEntity::getEntityName, Collectors.counting()));
-
-            logger.info(conteoPorEntidad.toString());
-            // Actualizar el timestamp de la última contabilización
-            lastCheckTimestamp.updateLastChecked(new Date());
-
-            return conteoPorEntidad;
-        }
-        return new HashMap<>();
-    }*/
 
     public Map<String, Long> obtenerCambiosRecientes() {
         // Directamente usa LocalDateTime
@@ -245,7 +215,7 @@ public class TerraService {
         /*Api Bi Washer*/
         String wash = getWasherResults(token.getToken(), new GenericDTO(from, to, statusRead));
         List<ResponseWahingChemicalIndicatorsDTO> responseWahingChemicalIndicatorsDTOList = filtrarMensaje(mapper, resultList, wash, ProcesosEnum.WASHER_RESULTS);
-        processWahingChemicalIndicators(responseWahingChemicalIndicatorsDTOList);
+         processWahingChemicalIndicators(responseWahingChemicalIndicatorsDTOList);
 
         /*Api Bi Sterilizer*/
         String sterilizer = getSterilizerResults(token.getToken(), new GenericDTO(from, to, statusRead));
@@ -256,15 +226,10 @@ public class TerraService {
     private void processResultsSterilizationChemicalIndicators(List<ResponseSterilizationChemicalIndicatorsDTO> responseSterilizationChemicalIndicatorsDTOList) {
         if (!responseSterilizationChemicalIndicatorsDTOList.isEmpty()) {
             responseSterilizationChemicalIndicatorsDTOList.forEach(bi -> {
-                if (!Util.validateIsNullOrEmpty(bi.getData().getCycle())) {
-                    List<SterilizerEntity> sterilizerEntityList = sterilizerRepository.searchByCycle(bi.getData().getCycle());
+                    List<SterilizerEntity> sterilizerEntityList = sterilizerRepository.searchByCreationTest(bi.getData().getCreationTest());
                     if (sterilizerEntityList.isEmpty()) {
                         guardarEnBaseSterilizerResults(bi);
                     }
-                } else {
-                    // Si el ciclo es nulo, se guarda el registro con el ciclo "NO-REGISTRA"
-                    guardarEnBaseSterilizerResults(bi);
-                }
             });
         }
     }
@@ -306,7 +271,7 @@ public class TerraService {
     private void processWahingChemicalIndicators(List<ResponseWahingChemicalIndicatorsDTO> responseWahingChemicalIndicatorsDTOList) {
         if (!responseWahingChemicalIndicatorsDTOList.isEmpty()) {
             responseWahingChemicalIndicatorsDTOList.forEach(bi -> {
-                List<WasherEntity> washingEntityList = washingRepository.searchByCycle(bi.getData().getCycle());
+                List<WasherEntity> washingEntityList = washingRepository.searchByCreationTest(bi.getData().getCreationTest());
                 if (washingEntityList.isEmpty()) {
                     guardarEnBaseWashingResults(bi);
                 }
@@ -316,51 +281,27 @@ public class TerraService {
 
     private void guardarEnBaseWashingResults(ResponseWahingChemicalIndicatorsDTO bi) {
         WasherEntity washerEntity = new WasherEntity();
-        washerEntity.setManufactureIndicator(bi.getDevice().getManufactureIndicator());
-        washerEntity.setSerialWasher(bi.getDevice().getSerialWasher());
-        washerEntity.setBrandWasher(bi.getDevice().getBrandWasher());
-        washerEntity.setUserName(bi.getDevice().getUserName());
-        washerEntity.setManufactureDate(bi.getData().getManufactureDate());
-        washerEntity.setWashingTime(bi.getData().getWashingTime());
-        washerEntity.setDetergentType(bi.getData().getDetergentType());
-        washerEntity.setDetergentConcentration(bi.getData().getDetergentConcentration());
-        washerEntity.setProgram(bi.getData().getProgram());
-        washerEntity.setLocation(bi.getData().getLocation());
-        washerEntity.setCreationTest(bi.getData().getCreationTest());
-        washerEntity.setTemperature(bi.getData().getTemperature());
-        washerEntity.setExpirationDate(bi.getData().getExpirationDate());
-        washerEntity.setSerialNumberScanner(bi.getData().getSerialNumberScanner());
-        washerEntity.setLotProduct(bi.getData().getLotProduct());
-        washerEntity.setBrand(bi.getData().getBrand());
-        washerEntity.setWaterPressure(bi.getData().getWaterPressure());
-        washerEntity.setWaterHardness(bi.getData().getWaterHardness());
-        washerEntity.setCycle(bi.getData().getCycle());
+        washerEntity.setManufactureIndicator(getValueOrDefault(bi.getDevice().getManufactureIndicator()));
+        washerEntity.setSerialWasher(getValueOrDefault(bi.getDevice().getSerialWasher()));
+        washerEntity.setBrandWasher(getValueOrDefault(bi.getDevice().getBrandWasher()));
+        washerEntity.setUserName(getValueOrDefault(bi.getDevice().getUserName()));
+        washerEntity.setManufactureDate(getValueOrDefault(bi.getData().getManufactureDate()));
+        washerEntity.setWashingTime(getValueOrDefault(bi.getData().getWashingTime()));
+        washerEntity.setDetergentType(getValueOrDefault(bi.getData().getDetergentType()));
+        washerEntity.setDetergentConcentration(getValueOrDefault(bi.getData().getDetergentConcentration()));
+        washerEntity.setProgram(getValueOrDefault(bi.getData().getProgram()));
+        washerEntity.setLocation(getValueOrDefault(bi.getData().getLocation()));
+        washerEntity.setCreationTest(getValueOrDefault(bi.getData().getCreationTest()));
+        washerEntity.setTemperature(getValueOrDefault(bi.getData().getTemperature()));
+        washerEntity.setExpirationDate(getValueOrDefault(bi.getData().getExpirationDate()));
+        washerEntity.setSerialNumberScanner(getValueOrDefault(bi.getData().getSerialNumberScanner()));
+        washerEntity.setLotProduct(getValueOrDefault(bi.getData().getLotProduct()));
+        washerEntity.setBrand(getValueOrDefault(bi.getData().getBrand()));
+        washerEntity.setWaterPressure(getValueOrDefault(bi.getData().getWaterPressure()));
+        washerEntity.setWaterHardness(getValueOrDefault(bi.getData().getWaterHardness()));
+        washerEntity.setCycle(getValueOrDefault(bi.getData().getCycle()));
         washingRepository.save(washerEntity);
     }
-
-   /* private void guardarEnBaseSterilizerResults(ResponseSterilizationChemicalIndicatorsDTO bi) {
-        SterilizerEntity sterilizerEntity = new SterilizerEntity();
-        sterilizerEntity.setManufactureIndicator((!Util.validateIsNullOrEmpty(bi.getDevice().getManufactureIndicator())) ? bi.getDevice().getManufactureIndicator() : "SIN_DATOS");
-        sterilizerEntity.setSerialSterilizer((!Util.validateIsNullOrEmpty(bi.getDevice().getSerialSterilizer())) ? bi.getDevice().getSerialSterilizer() : "SIN_DATOS");
-        sterilizerEntity.setBrandSterilizer((!Util.validateIsNullOrEmpty(bi.getDevice().getBrandSterilizer())) ? bi.getDevice().getBrandSterilizer() : "SIN_DATOS");
-        sterilizerEntity.setUserName((!Util.validateIsNullOrEmpty(bi.getDevice().getUserName())) ? bi.getDevice().getUserName() : "SIN_DATOS");
-        sterilizerEntity.setManufactureDate((!Util.validateIsNullOrEmpty(bi.getData().getManufactureDate())) ? bi.getData().getManufactureDate() : "SIN_DATOS");
-        sterilizerEntity.setExposureTime((!Util.validateIsNullOrEmpty(bi.getData().getExposureTime())) ? bi.getData().getExposureTime() : "SIN_DATOS");
-        sterilizerEntity.setResult((!Util.validateIsNullOrEmpty(bi.getData().getResult())) ? bi.getData().getResult() : "SIN_DATOS");
-        sterilizerEntity.setConcentration((!Util.validateIsNullOrEmpty(bi.getData().getConcentration())) ? bi.getData().getConcentration() : "SIN_DATOS");
-        sterilizerEntity.setRelativeDampness((!Util.validateIsNullOrEmpty(bi.getData().getRelativeDampness())) ? bi.getData().getRelativeDampness() : "SIN_DATOS");
-        sterilizerEntity.setPackageNumber((!Util.validateIsNullOrEmpty(bi.getData().getPackageNumber())) ? bi.getData().getPackageNumber() : "SIN_DATOS");
-        sterilizerEntity.setProgram((!Util.validateIsNullOrEmpty(bi.getData().getProgram())) ? bi.getData().getProgram() : "SIN_DATOS");
-        sterilizerEntity.setCreationTest((!Util.validateIsNullOrEmpty(bi.getData().getCreationTest())) ? bi.getData().getCreationTest() : "SIN_DATOS");
-        sterilizerEntity.setTemperature((!Util.validateIsNullOrEmpty(bi.getData().getTemperature())) ? bi.getData().getTemperature() : "SIN_DATOS");
-        sterilizerEntity.setExpirationDate((!Util.validateIsNullOrEmpty(bi.getData().getExpirationDate())) ? bi.getData().getExpirationDate() : "SIN_DATOS");
-        sterilizerEntity.setSerialNumberScanner((!Util.validateIsNullOrEmpty(bi.getData().getSerialNumberScanner())) ? bi.getData().getSerialNumberScanner() : "SIN_DATOS");
-        sterilizerEntity.setNameProduct((!Util.validateIsNullOrEmpty(bi.getData().getNameProduct())) ? bi.getData().getNameProduct() : "SIN_DATOS");
-        sterilizerEntity.setLoteProduct((!Util.validateIsNullOrEmpty(bi.getData().getLoteProduct())) ? bi.getData().getLoteProduct() : "SIN_DATOS");
-        sterilizerEntity.setBrand((!Util.validateIsNullOrEmpty(bi.getData().getBrand())) ? bi.getData().getBrand() : "SIN_DATOS");
-        sterilizerEntity.setCycle((!Util.validateIsNullOrEmpty(bi.getData().getCycle())) ? bi.getData().getCycle() : "SIN_DATOS");
-        sterilizerRepository.save(sterilizerEntity);
-    }*/
 
     private void guardarEnBaseSterilizerResults(ResponseSterilizationChemicalIndicatorsDTO bi) {
         SterilizerEntity sterilizerEntity = new SterilizerEntity();
@@ -393,75 +334,75 @@ public class TerraService {
 
     private void guardarEnBaseProteinResult(ResponseProteinIndicatorsDTO bi) {
         ProteinEntity proteinEntity = new ProteinEntity();
-        proteinEntity.setPositionNumber(bi.getDevice().getPositionNumber());
-        proteinEntity.setWasherSerial(bi.getDevice().getWasherSerial());
-        proteinEntity.setWasherName(bi.getDevice().getWasherName());
-        proteinEntity.setProtein(bi.getDevice().getProtein());
-        proteinEntity.setUserName(bi.getDevice().getUserName());
-        proteinEntity.setTicketNumber(bi.getData().getTicketNumber());
-        proteinEntity.setResult(bi.getData().getResult());
-        proteinEntity.setSurface(bi.getData().getSurface());
-        proteinEntity.setProgramNumber(bi.getData().getProgramNumber());
-        proteinEntity.setStartedTime(bi.getData().getStartedTime());
-        proteinEntity.setAverageTemperature(bi.getData().getAverageTemperature());
-        proteinEntity.setResultDate(bi.getData().getResultDate());
-        proteinEntity.setIncubatorSerialNumber(bi.getData().getIncubatorSerialNumber());
-        proteinEntity.setProductName(bi.getData().getProductName());
-        proteinEntity.setLoteProduct(bi.getData().getLoteProduct());
-        proteinEntity.setProductBrand(bi.getData().getProductBrand());
-        proteinEntity.setIncubatorName(bi.getData().getIncubatorName());
-        proteinEntity.setCycle(bi.getData().getCycle());
-
+        proteinEntity.setPositionNumber(getValueOrDefault(bi.getDevice().getPositionNumber()));
+        proteinEntity.setWasherSerial(getValueOrDefault(bi.getDevice().getWasherSerial()));
+        proteinEntity.setWasherName(getValueOrDefault(bi.getDevice().getWasherName()));
+        proteinEntity.setProtein(getValueOrDefault(bi.getDevice().getProtein()));
+        proteinEntity.setUserName(getValueOrDefault(bi.getDevice().getUserName()));
+        proteinEntity.setTicketNumber(getValueOrDefault(bi.getData().getTicketNumber()));
+        proteinEntity.setResult(getValueOrDefault(bi.getData().getResult()));
+        proteinEntity.setSurface(getValueOrDefault(bi.getData().getSurface()));
+        proteinEntity.setProgramNumber(getValueOrDefault(bi.getData().getProgramNumber()));
+        proteinEntity.setStartedTime(getValueOrDefault(bi.getData().getStartedTime()));
+        proteinEntity.setAverageTemperature(getValueOrDefault(bi.getData().getAverageTemperature()));
+        proteinEntity.setResultDate(getValueOrDefault(bi.getData().getResultDate()));
+        proteinEntity.setIncubatorSerialNumber(getValueOrDefault(bi.getData().getIncubatorSerialNumber()));
+        proteinEntity.setProductName(getValueOrDefault(bi.getData().getProductName()));
+        proteinEntity.setLoteProduct(getValueOrDefault(bi.getData().getLoteProduct()));
+        proteinEntity.setProductBrand(getValueOrDefault(bi.getData().getProductBrand()));
+        proteinEntity.setIncubatorName(getValueOrDefault(bi.getData().getIncubatorName()));
+        proteinEntity.setCycle(getValueOrDefault(bi.getData().getCycle()));
         proteinRepository.save(proteinEntity);
 
     }
 
     private void guardarEnBaseDisinfectionResults(ResponseBiologicalIndicatorsOfDisinfectionDTO bi) {
         DisinfectionEntity disinfectionEntity = new DisinfectionEntity();
-        disinfectionEntity.setTicketNumber(bi.getData().getTicketNumber());
-        disinfectionEntity.setStartedTime(bi.getData().getStartedTime());
-        disinfectionEntity.setResult(bi.getData().getResult());
-        disinfectionEntity.setProcess(bi.getData().getProcess());
-        disinfectionEntity.setConditionSCIB(bi.getData().getConditionSCIB());
-        disinfectionEntity.setRoomId(bi.getData().getRoomId());
-        disinfectionEntity.setRoomVolume(bi.getData().getRoomVolume());
-        disinfectionEntity.setAverageTemperature(bi.getData().getAverageTemperature());
-        disinfectionEntity.setResultDate(bi.getData().getResultDate());
-        disinfectionEntity.setIncubatorSerialNumber(bi.getData().getIncubatorSerialNumber());
-        disinfectionEntity.setProductName(bi.getData().getProductName());
-        disinfectionEntity.setProductLot(bi.getData().getProductLot());
-        disinfectionEntity.setProductBrand(bi.getData().getProductBrand());
-        disinfectionEntity.setIncubatorName(bi.getData().getIncubatorName());
-        disinfectionEntity.setDisinfectorSerial(bi.getDevice().getDisinfectorSerial());
-        disinfectionEntity.setDisinfectorName(bi.getDevice().getDisinfectorName());
-        disinfectionEntity.setPeroxideConcentration(bi.getDevice().getPeroxideConcentration());
-        disinfectionEntity.setUserName(bi.getDevice().getUserName());
-        disinfectionEntity.setPositionNumber(bi.getDevice().getPositionNumber());
+
+        disinfectionEntity.setTicketNumber(getValueOrDefault(bi.getData().getTicketNumber()));
+        disinfectionEntity.setStartedTime(getValueOrDefault(bi.getData().getStartedTime()));
+        disinfectionEntity.setResult(getValueOrDefault(bi.getData().getResult()));
+        disinfectionEntity.setProcess(getValueOrDefault(bi.getData().getProcess()));
+        disinfectionEntity.setConditionSCIB(getValueOrDefault(bi.getData().getConditionSCIB()));
+        disinfectionEntity.setRoomId(getValueOrDefault(bi.getData().getRoomId()));
+        disinfectionEntity.setRoomVolume(getValueOrDefault(bi.getData().getRoomVolume()));
+        disinfectionEntity.setAverageTemperature(getValueOrDefault(bi.getData().getAverageTemperature()));
+        disinfectionEntity.setResultDate(getValueOrDefault(bi.getData().getResultDate()));
+        disinfectionEntity.setIncubatorSerialNumber(getValueOrDefault(bi.getData().getIncubatorSerialNumber()));
+        disinfectionEntity.setProductName(getValueOrDefault(bi.getData().getProductName()));
+        disinfectionEntity.setProductLot(getValueOrDefault(bi.getData().getProductLot()));
+        disinfectionEntity.setProductBrand(getValueOrDefault(bi.getData().getProductBrand()));
+        disinfectionEntity.setIncubatorName(getValueOrDefault(bi.getData().getIncubatorName()));
+        disinfectionEntity.setDisinfectorSerial(getValueOrDefault(bi.getDevice().getDisinfectorSerial()));
+        disinfectionEntity.setDisinfectorName(getValueOrDefault(bi.getDevice().getDisinfectorName()));
+        disinfectionEntity.setPeroxideConcentration(getValueOrDefault(bi.getDevice().getPeroxideConcentration()));
+        disinfectionEntity.setUserName(getValueOrDefault(bi.getDevice().getUserName()));
+        disinfectionEntity.setPositionNumber(getValueOrDefault(bi.getDevice().getPositionNumber()));
         disinfectionRepository.save(disinfectionEntity);
     }
 
     private void guardarEnBaseSterilizationResult(ResponseBiologicalIndicatorSterilizationDTO bi) {
         SterilizationEntity resultSterilization = new SterilizationEntity();
-        resultSterilization.setTicketNumber(bi.getData().getTicketNumber());
-        resultSterilization.setProcess(bi.getData().getProcess());
-        resultSterilization.setConditionSCIB(bi.getData().getConditionSCIB());
-        resultSterilization.setLoadNumber(bi.getData().getLoadNumber());
-        resultSterilization.setProgramNumber(bi.getData().getProgramNumber());
-        resultSterilization.setStartedTime(bi.getData().getStartedTime());
-        resultSterilization.setAverageTemperature(bi.getData().getAverageTemperature());
-        resultSterilization.setResultDate(bi.getData().getResultDate());
-        resultSterilization.setIncubatorSerialNumber(bi.getData().getIncubatorSerialNumber());
-        resultSterilization.setProductName(bi.getData().getProductName());
-        resultSterilization.setProductLot(bi.getData().getProductLot());
-        resultSterilization.setProductBrand(bi.getData().getProductBrand());
-        resultSterilization.setIncubatorName(bi.getData().getIncubatorName());
-        resultSterilization.setCycle(bi.getData().getCycle());
-        resultSterilization.setResult(bi.getData().getResult());
-        resultSterilization.setPositionNumber(bi.getDevice().getPositionNumber());
-        resultSterilization.setSterilizerSerial(bi.getDevice().getSterilizerSerial());
-        resultSterilization.setSterilizerName(bi.getDevice().getSterilizerName());
-        resultSterilization.setDValue(bi.getDevice().getDValue());
-        resultSterilization.setUserName(bi.getDevice().getUserName());
+        resultSterilization.setTicketNumber(getValueOrDefault(bi.getData().getTicketNumber()));
+        resultSterilization.setProcess(getValueOrDefault(bi.getData().getProcess()));
+        resultSterilization.setConditionSCIB(getValueOrDefault(bi.getData().getConditionSCIB()));
+        resultSterilization.setLoadNumber(getValueOrDefault(bi.getData().getLoadNumber()));
+        resultSterilization.setProgramNumber(getValueOrDefault(bi.getData().getProgramNumber()));
+        resultSterilization.setStartedTime(getValueOrDefault(bi.getData().getStartedTime()));
+        resultSterilization.setAverageTemperature(getValueOrDefault(bi.getData().getAverageTemperature()));
+        resultSterilization.setResultDate(getValueOrDefault(bi.getData().getResultDate()));
+        resultSterilization.setIncubatorSerialNumber(getValueOrDefault(bi.getData().getIncubatorSerialNumber()));
+        resultSterilization.setProductName(getValueOrDefault(bi.getData().getProductName()));
+        resultSterilization.setProductLot(getValueOrDefault(bi.getData().getProductLot()));
+        resultSterilization.setProductBrand(getValueOrDefault(bi.getData().getProductBrand()));
+        resultSterilization.setIncubatorName(getValueOrDefault(bi.getData().getIncubatorName()));
+        resultSterilization.setCycle(getValueOrDefault(bi.getData().getCycle()));
+        resultSterilization.setResult(getValueOrDefault(bi.getData().getResult()));
+        resultSterilization.setPositionNumber(getValueOrDefault(bi.getDevice().getPositionNumber()));
+        resultSterilization.setSterilizerSerial(getValueOrDefault(bi.getDevice().getSterilizerSerial()));
+        resultSterilization.setSterilizerName(getValueOrDefault(bi.getDevice().getSterilizerName()));
+        resultSterilization.setDValue(getValueOrDefault(bi.getDevice().getDValue()));
+        resultSterilization.setUserName(getValueOrDefault(bi.getDevice().getUserName()));
         sterilizationRepository.save(resultSterilization);
     }
 
@@ -572,7 +513,12 @@ public class TerraService {
      */
     public TokenDTO tokenLogin(LoginDTO login) {
         TokenDTO token = new TokenDTO();
-        token.setToken(restTemplate.postForObject(basePath + "/login/login", login, String.class));
+        try {
+            token.setToken(restTemplate.postForObject(basePath + "/login/login", login, String.class));
+        } catch (Exception e) {
+            throw new ObtenerTokenException("Error al obtener el token" + e.getMessage());
+        }
+
         return token;
     }
 
@@ -1240,7 +1186,8 @@ public class TerraService {
             jsonString = objectMapper.writeValueAsString(object);
         } catch (JsonProcessingException e) {
             // Manejar excepciones según corresponda
-            e.printStackTrace();
+            logger.error("Error al convertir el objeto a JSON");
+            throw new BaxenGenericException("Error al convertir el objeto a JSON");
         }
 
         return jsonString;

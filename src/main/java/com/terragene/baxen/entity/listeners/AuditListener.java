@@ -28,6 +28,7 @@ public class AuditListener {
         auditLog.setModelo(((Auditable) object).getModelName());
         auditLog.setNroSerie(((Auditable) object).getSerialNumber());
         auditLog.setUsername(((Auditable) object).getUserName());
+        auditLog.setInformado(false);
 
         EntityManager em = BeanUtil.getBean(EntityManager.class);
         em.persist(auditLog);

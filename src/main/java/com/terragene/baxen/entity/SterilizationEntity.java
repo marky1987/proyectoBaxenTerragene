@@ -20,7 +20,7 @@ import lombok.Setter;
 public class SterilizationEntity implements Auditable {
 
     @Id
-    @GeneratedValue(strategy = GenerationType.SEQUENCE)
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
     @Column(name = "results_sterilization_id", nullable = false)
     private Long resultsSterilizationId;
 

@@ -18,12 +18,8 @@ import lombok.Setter;
 public class SterilizerEntity implements Auditable {
 
     @Id
-    @GeneratedValue(strategy = GenerationType.SEQUENCE, generator = "results_sterilizer_seq")
-    @SequenceGenerator(
-            name = "results_sterilizer_seq",
-            sequenceName = "results_sterilizer_seq", // Asegúrate de que este nombre coincida exactamente con el nombre de tu secuencia en la base de datos
-            allocationSize = 1
-    )
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    @Column(name = "results_sterilizer_id", nullable = false)
     private int resultsSterilizerId;
 
     @Column(name = "manufacture_indicator")

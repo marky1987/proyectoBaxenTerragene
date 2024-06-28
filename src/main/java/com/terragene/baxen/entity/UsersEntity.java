@@ -11,8 +11,8 @@ import lombok.Setter;
 public class UsersEntity {
 
     @Id
-    @GeneratedValue(strategy = GenerationType.SEQUENCE)
-    @Column(name = "users_id", nullable = false)
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    @Column(name = "id", nullable = false)
     private Long id;
 
     @Column(name = "username")
@@ -26,5 +26,8 @@ public class UsersEntity {
 
     @Column(name = "role_id")
     private String role;
+
+    @Column(name = "dias_filtro")
+    private String diasFiltro;
 
 }

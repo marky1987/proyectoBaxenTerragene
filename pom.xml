@@ -10,7 +10,8 @@
     </parent>
     <groupId>com.terragene</groupId>
     <artifactId>baxen</artifactId>
-    <version>0.0.1-SNAPSHOT</version>
+    <version>1.0-SNAPSHOT</version>
+    <packaging>jar</packaging>
     <name>baxen</name>
     <description>baxen</description>
     <properties>
@@ -86,12 +87,22 @@
             <artifactId>json</artifactId>
             <version>20231013</version>
         </dependency>
+
+        <!-- https://mvnrepository.com/artifact/com.microsoft.sqlserver/mssql-jdbc -->
+        <!--<dependency>
+            <groupId>com.microsoft.sqlserver</groupId>
+            <artifactId>mssql-jdbc</artifactId>
+            <scope>runtime</scope>
+        </dependency>-->
         <!-- https://mvnrepository.com/artifact/com.microsoft.sqlserver/mssql-jdbc -->
         <dependency>
             <groupId>com.microsoft.sqlserver</groupId>
             <artifactId>mssql-jdbc</artifactId>
-            <version>12.3.0.jre17-preview</version>
+            <version>12.6.0.jre11</version>
         </dependency>
+
+
+
 
         <dependency>
             <groupId>org.projectlombok</groupId>
@@ -110,13 +121,26 @@
                 </exclusion>
             </exclusions>
         </dependency>
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-actuator</artifactId>
+        </dependency>
     </dependencies>
     <build>
         <plugins>
             <plugin>
                 <groupId>org.springframework.boot</groupId>
                 <artifactId>spring-boot-maven-plugin</artifactId>
+                <version>3.2.2</version> <!-- Usa la última versión disponible -->
+                <executions>
+                    <execution>
+                        <goals>
+                            <goal>repackage</goal>
+                        </goals>
+                    </execution>
+                </executions>
                 <configuration>
+                    <mainClass>com.terragene.baxen.BaxenApplication</mainClass>
                     <excludes>
                         <exclude>
                             <groupId>org.projectlombok</groupId>
@@ -126,29 +150,8 @@
                             <groupId>org.springframework.boot</groupId>
                             <artifactId>spring-boot-starter-tomcat</artifactId>
                         </exclude>
-                        <exclude>
-                            <groupId>commons-logging</groupId>
-                            <artifactId>commons-logging</artifactId>
-                        </exclude>
                     </excludes>
                 </configuration>
-            </plugin>
-            <plugin>
-                <groupId>org.apache.maven.plugins</groupId>
-                <artifactId>maven-dependency-plugin</artifactId>
-                <version>3.6.0</version> <!-- Usa la última versión disponible -->
-                <executions>
-                    <execution>
-                        <id>copy-dependencies</id>
-                        <phase>prepare-package</phase>
-                        <goals>
-                            <goal>copy-dependencies</goal>
-                        </goals>
-                        <configuration>
-                            <outputDirectory>D:\workspace\modulosBaxen</outputDirectory>
-                        </configuration>
-                    </execution>
-                </executions>
             </plugin>
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
@@ -160,21 +163,52 @@
             </plugin>
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
-                <artifactId>maven-jar-plugin</artifactId>
-                <version>3.3.0</version> <!-- Asegúrate de usar la última versión -->
+                <artifactId>maven-assembly-plugin</artifactId>
+                <version>3.6.0</version> <!-- Asegúrate de usar la última versión -->
                 <configuration>
+                    <descriptorRefs>
+                        <descriptorRef>jar-with-dependencies</descriptorRef>
+                    </descriptorRefs>
                     <archive>
-                        <manifest>
-                            <addClasspath>true</addClasspath>
-                            <classpathPrefix>lib/</classpathPrefix>
-                            <mainClass>com.terragene.baxen.BaxenApplication</mainClass>
-                        </manifest>
+                        <manifestFile>${project.basedir}/src/main/resources/META-INF/MANIFEST.MF</manifestFile>
                     </archive>
                 </configuration>
+                <executions>
+                    <execution>
+                        <phase>package</phase>
+                        <goals>
+                            <goal>single</goal>
+                        </goals>
+                    </execution>
+                </executions>
             </plugin>
-
         </plugins>
-
     </build>
+    <repositories>
+        <repository>
+            <id>maven_central</id>
+            <name>Maven Central</name>
+            <url>https://repo.maven.apache.org/maven2/</url>
+        </repository>
+    </repositories>
+    <profiles>
+        <profile>
+            <id>local</id>
+            <activation>
+                <activeByDefault>true</activeByDefault>
+            </activation>
+            <properties>
+                <spring.profiles.active>local</spring.profiles.active>
+                <logging.config>classpath:logback-spring.xml</logging.config>
+            </properties>
+        </profile>
+        <profile>
+            <id>server</id>
+            <properties>
+                <spring.profiles.active>server</spring.profiles.active>
+                <logging.config>classpath:logback-spring.xml</logging.config>
 
+            </properties>
+        </profile>
+    </profiles>
 </project>

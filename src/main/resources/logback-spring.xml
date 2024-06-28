@@ -1,0 +1,79 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<configuration>
+    <appender name="console-appender"
+              class="ch.qos.logback.core.ConsoleAppender">
+        <layout class="ch.qos.logback.classic.PatternLayout">
+            <Pattern>
+                %d{HH:mm:ss.SSS} [%thread] %-5level %logger{36} - %msg%n
+            </Pattern>
+        </layout>
+    </appender>
+
+    <springProfile name="local">
+        <logger name="com.zaxxer.hikari" level="debug" additivity="false">
+            <appender-ref ref="console-appender"/>
+            <appender-ref ref="file-appender"/>
+        </logger>
+        <logger name="org.hibernate.SQL" level="debug" additivity="false">
+            <appender-ref ref="console-appender"/>
+            <appender-ref ref="file-appender"/>
+        </logger>
+        <logger name="org.hibernate.type.descriptor.sql.BasicBinder" level="trace" additivity="false">
+            <appender-ref ref="console-appender"/>
+            <appender-ref ref="file-appender"/>
+        </logger>
+        <logger name="org.springframework.transaction" level="debug" additivity="false">
+            <appender-ref ref="console-appender"/>
+            <appender-ref ref="file-appender"/>
+        </logger>
+        <logger name="org.springframework.orm.jpa" level="debug" additivity="false">
+            <appender-ref ref="console-appender"/>
+            <appender-ref ref="file-appender"/>
+        </logger>
+        <root level="info">
+            <appender-ref ref="console-appender"/>
+            <appender-ref ref="file-appender"/>
+        </root>
+    </springProfile>
+
+    <springProfile name="!local">
+        <appender name="file-appender"
+                  class="ch.qos.logback.core.rolling.RollingFileAppender">
+            <file>/logs/baxen/baxenApp.log</file>
+            <rollingPolicy class="ch.qos.logback.core.rolling.TimeBasedRollingPolicy">
+                <fileNamePattern>/logs/baxen/baxenAppJava17-%d{yyyy-MM-dd}.log</fileNamePattern>
+                <maxHistory>10</maxHistory>
+                <totalSizeCap>1GB</totalSizeCap>
+            </rollingPolicy>
+            <encoder>
+                <pattern>%d{HH:mm:ss.SSS} [%thread] %-5level %logger{36} - %msg%n</pattern>
+            </encoder>
+        </appender>
+        <logger name="com.zaxxer.hikari" level="info" additivity="false">
+            <appender-ref ref="console-appender"/>
+            <appender-ref ref="file-appender"/>
+        </logger>
+        <logger name="org.hibernate.SQL" level="info" additivity="false">
+            <appender-ref ref="console-appender"/>
+            <appender-ref ref="file-appender"/>
+        </logger>
+        <logger name="org.hibernate.type.descriptor.sql.BasicBinder" level="trace" additivity="false">
+            <appender-ref ref="console-appender"/>
+            <appender-ref ref="file-appender"/>
+        </logger>
+        <logger name="org.springframework.transaction" level="info" additivity="false">
+            <appender-ref ref="console-appender"/>
+            <appender-ref ref="file-appender"/>
+        </logger>
+        <logger name="org.springframework.orm.jpa" level="info" additivity="false">
+            <appender-ref ref="console-appender"/>
+            <appender-ref ref="file-appender"/>
+        </logger>
+        <root level="info">
+            <appender-ref ref="console-appender"/>
+            <appender-ref ref="file-appender"/>
+        </root>
+    </springProfile>
+</configuration>
+
+
