@@ -153,8 +153,8 @@ public class TerraService {
 
         /*if (passwordEncoder.matches(password, user.getPassword())) {*/
 
-            LocalDateTime from = LocalDateTime.now();
-            LocalDateTime to = LocalDateTime.now().plusDays(Integer.parseInt(user.getDiasFiltro()));
+            LocalDateTime from = LocalDateTime.now().minusDays(Integer.parseInt(user.getDiasFiltro()));
+            LocalDateTime to = LocalDateTime.now().plusDays(1);
 
             LocalDateTime startFilter = from.withHour(0).withMinute(0).withSecond(0);
             LocalDateTime endFilter = to.withHour(23).withMinute(59).withSecond(59);
